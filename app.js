@@ -15,7 +15,15 @@ const stopButton = document.querySelector("#stop-button");
 const recognizedAnswer = document.querySelector("#recognized-answer");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+let recognition = null;
+let recognitionInitializationError = "";
+if (SpeechRecognition) {
+  try {
+    recognition = new SpeechRecognition();
+  } catch (error) {
+    recognitionInitializationError = error instanceof Error ? error.message : String(error);
+  }
+}
 
 let phrases = [];
 let currentIndex = 0;
@@ -98,7 +106,9 @@ if (recognition && "speechSynthesis" in window) {
 } else {
   browserStatus.textContent = "Распознавание недоступно";
   statusDot.classList.add("is-unavailable");
-  recognitionStatus.textContent = "Для голосовой практики откройте страницу в Chrome или Edge.";
+  recognitionStatus.textContent = recognitionInitializationError
+    ? `Не удалось запустить распознавание речи: ${recognitionInitializationError}`
+    : "Для голосовой практики откройте страницу в Chrome или Edge.";
 }
 
 sourceForm.addEventListener("submit", (event) => {
@@ -114,9 +124,11 @@ async function loadPhrases() {
   setLoadStatus("Загружаю фразы...", false);
   stopPractice();
 
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 15000);
   try {
     const url = new URL(rawUrl, window.location.href);
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) throw new Error(`Сервер ответил ${response.status}`);
 
     const content = await response.text();
@@ -137,7 +149,14 @@ async function loadPhrases() {
     phrases = [];
     renderPhrase();
     loadedSourceUrl = "";
-    setLoadStatus(`Не удалось загрузить файл: ${error.message}. Проверьте URL и CORS.`, true);
+    const message = error instanceof Error ? error.message : String(error);
+    const reason = error instanceof Error && error.name === "AbortError"
+      ? "истекло время ожидания (15 секунд)"
+      : message;
+    phraseElement.textContent = "Не удалось загрузить фразы";
+    setLoadStatus(`Ошибка загрузки: ${reason}. Проверьте URL, подключение и CORS.`, true);
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 
@@ -288,14 +307,22 @@ function speak(text, language, onEnd) {
     return;
   }
 
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language;
-  utterance.rate = 0.94;
-  utterance.onend = () => {
-    if (isActive && onEnd) onEnd();
-  };
-  window.speechSynthesis.speak(utterance);
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language;
+    utterance.rate = 0.94;
+    utterance.onend = () => {
+      if (isActive && onEnd) onEnd();
+    };
+    utterance.onerror = (event) => {
+      recognitionStatus.textContent = `Не удалось озвучить фразу: ${event.error || "ошибка синтеза речи"}.`;
+    };
+    window.speechSynthesis.speak(utterance);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    recognitionStatus.textContent = `Не удалось запустить озвучивание: ${message}`;
+  }
 }
 
 function stopListening() {
