@@ -37,6 +37,7 @@ let recognitionMode = "answer";
 let answerAlternatives = [];
 let retryListening = false;
 let recognitionEndAction = null;
+let recognitionStopTimer = null;
 
 const phraseStorageKey = "voicePractice.phrases";
 const russianVoiceStorageKey = "voicePractice.russianVoice";
@@ -59,20 +60,19 @@ if (recognition) {
     const alternatives = Array.from(event.results[0], (result) => result.transcript);
     if (alternatives.some(isRepeatCommand)) {
       retryListening = false;
-      recognitionEndAction = speakPrompt;
-      recognition.stop();
+      stopRecognitionThen(speakPrompt);
       return;
     }
 
     if (recognitionMode === "keyword") {
       if (alternatives.some((answer) => normalize(answer) === normalize("Готово"))) {
         retryListening = false;
-        recognitionEndAction = () => checkAnswer(answerAlternatives);
-        recognition.stop();
+        recognitionStatus.textContent = "Проверяю ответ...";
+        stopRecognitionThen(() => checkAnswer(answerAlternatives));
       } else {
         recognitionStatus.textContent = "Скажите «Готово» для проверки или «Повтори фразу» для повтора.";
         retryListening = true;
-        recognition.stop();
+        stopRecognitionThen(resumeListeningIfNeeded);
       }
       return;
     }
@@ -81,7 +81,7 @@ if (recognition) {
     recognitionMode = "keyword";
     recognition.lang = "ru-RU";
     retryListening = true;
-    recognition.stop();
+    stopRecognitionThen(resumeListeningIfNeeded);
   });
 
   recognition.addEventListener("error", (event) => {
@@ -96,21 +96,12 @@ if (recognition) {
     recognitionStatus.textContent = messages[event.error] || "Не удалось распознать речь. Попробуйте ещё раз.";
     if (event.error === "no-speech") {
       retryListening = true;
+      stopRecognitionThen(resumeListeningIfNeeded);
     }
   });
 
   recognition.addEventListener("end", () => {
-    isListening = false;
-    if (recognitionEndAction) {
-      const action = recognitionEndAction;
-      recognitionEndAction = null;
-      action();
-      return;
-    }
-    if (isActive && retryListening) {
-      retryListening = false;
-      startListening();
-    }
+    completeRecognitionStop();
   });
 }
 
@@ -419,6 +410,47 @@ function startListening() {
   }
 }
 
+function stopRecognitionThen(action) {
+  recognitionEndAction = action;
+  window.clearTimeout(recognitionStopTimer);
+  recognitionStopTimer = window.setTimeout(() => {
+    if (recognitionEndAction && recognition) {
+      try {
+        recognition.abort();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        recognitionStatus.textContent = `Не удалось остановить распознавание: ${message}`;
+      }
+    }
+    completeRecognitionStop();
+  }, 1000);
+  try {
+    recognition.stop();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    recognitionStatus.textContent = `Не удалось остановить распознавание: ${message}`;
+  }
+}
+
+function completeRecognitionStop() {
+  window.clearTimeout(recognitionStopTimer);
+  recognitionStopTimer = null;
+  isListening = false;
+  const action = recognitionEndAction;
+  recognitionEndAction = null;
+  if (action) {
+    action();
+    return;
+  }
+  resumeListeningIfNeeded();
+}
+
+function resumeListeningIfNeeded() {
+  if (!isActive || !retryListening) return;
+  retryListening = false;
+  startListening();
+}
+
 function checkAnswer(alternatives) {
   if (!isActive || !phrases[currentIndex]) return;
   const expected = normalize(phrases[currentIndex].translation);
@@ -514,6 +546,8 @@ function stopPractice() {
   isActive = false;
   retryListening = false;
   recognitionEndAction = null;
+  window.clearTimeout(recognitionStopTimer);
+  recognitionStopTimer = null;
   stopListening();
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   recognitionStatus.textContent = "Практика остановлена.";
