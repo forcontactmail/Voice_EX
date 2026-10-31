@@ -1,6 +1,12 @@
 const sourceForm = document.querySelector("#source-form");
 const sourceUrl = document.querySelector("#source-url");
+const phraseFile = document.querySelector("#phrase-file");
+const phraseEditor = document.querySelector("#phrase-editor");
+const savePhrasesButton = document.querySelector("#save-phrases-button");
 const loadStatus = document.querySelector("#load-status");
+const voiceStatus = document.querySelector("#voice-status");
+const russianVoiceSelect = document.querySelector("#russian-voice");
+const englishVoiceSelect = document.querySelector("#english-voice");
 const browserStatus = document.querySelector("#browser-status");
 const statusDot = document.querySelector(".status-dot");
 const phraseElement = document.querySelector("#phrase");
@@ -33,6 +39,11 @@ let recognitionMode = "answer";
 let answerAlternatives = [];
 let retryListening = false;
 let loadedSourceUrl = "";
+let voices = [];
+let savedVoiceSettings = { russian: "", english: "" };
+
+const phraseStorageKey = "voice-ex.phrases";
+const voiceStorageKey = "voice-ex.voices";
 
 if (recognition) {
   recognition.lang = "en-US";
@@ -117,6 +128,149 @@ sourceForm.addEventListener("submit", (event) => {
 });
 
 sourceUrl.addEventListener("change", loadPhrases);
+phraseFile.addEventListener("change", async () => {
+  const file = phraseFile.files?.[0];
+  if (!file) return;
+
+  try {
+    phraseEditor.value = await file.text();
+    setLoadStatus(`Файл «${file.name}» загружен. Проверьте список и нажмите «Сохранить список».`, false);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setLoadStatus(`Не удалось прочитать файл: ${message}`, true);
+  }
+});
+
+savePhrasesButton.addEventListener("click", savePhrases);
+russianVoiceSelect.addEventListener("change", () => saveVoicePreference("russian", russianVoiceSelect));
+englishVoiceSelect.addEventListener("change", () => saveVoicePreference("english", englishVoiceSelect));
+
+function savePhrases() {
+  try {
+    const content = phraseEditor.value;
+    const savedPhrases = parsePhrases(content);
+    if (savedPhrases.length === 0) {
+      throw new Error("Список пуст. Добавьте хотя бы одну пару фраз.");
+    }
+
+    window.localStorage.setItem(phraseStorageKey, content);
+    phrases = savedPhrases;
+    currentIndex = 0;
+    loadedSourceUrl = "";
+    renderPhrase();
+    setLoadStatus(`Сохранено фраз: ${phrases.length}. Список останется в этом браузере.`, false);
+    isActive = true;
+    updateControls();
+    speakPrompt();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setLoadStatus(`Не удалось сохранить список: ${message}`, true);
+  }
+}
+
+function initializeVoices() {
+  try {
+    const saved = window.localStorage.getItem(voiceStorageKey);
+    if (saved) {
+      const settings = JSON.parse(saved);
+      if (settings && typeof settings === "object") {
+        savedVoiceSettings = {
+          russian: typeof settings.russian === "string" ? settings.russian : "",
+          english: typeof settings.english === "string" ? settings.english : "",
+        };
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    voiceStatus.textContent = `Не удалось загрузить сохранённые настройки голосов: ${message}`;
+  }
+
+  refreshVoices();
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.addEventListener("voiceschanged", refreshVoices);
+  }
+}
+
+function refreshVoices() {
+  if (!("speechSynthesis" in window)) {
+    voiceStatus.textContent = "Синтез речи недоступен в этом браузере.";
+    return;
+  }
+
+  voices = window.speechSynthesis.getVoices();
+  populateVoiceSelect(russianVoiceSelect, "ru", savedVoiceSettings.russian);
+  populateVoiceSelect(englishVoiceSelect, "en", savedVoiceSettings.english);
+  if (voices.length === 0) {
+    voiceStatus.textContent = "Браузер пока не предоставил список голосов.";
+  } else {
+    voiceStatus.textContent = "Выбранные голоса сохраняются в этом браузере.";
+  }
+}
+
+function populateVoiceSelect(select, language, preferredVoice) {
+  const availableVoices = voices.filter((voice) => {
+    const voiceLanguage = voice.lang.toLowerCase();
+    return voiceLanguage === language || voiceLanguage.startsWith(`${language}-`);
+  });
+  const selectedVoice = select.value;
+  select.replaceChildren(new Option("Автоматический голос", ""));
+  for (const voice of availableVoices) {
+    const option = new Option(`${voice.name} (${voice.lang})`, getVoiceKey(voice));
+    select.add(option);
+  }
+
+  const desiredVoice = preferredVoice || selectedVoice;
+  if (availableVoices.some((voice) => getVoiceKey(voice) === desiredVoice)) {
+    select.value = desiredVoice;
+  } else {
+    select.value = "";
+  }
+
+  if (availableVoices.length === 0) {
+    select.options[0].textContent = `Нет голосов ${language === "ru" ? "на русском" : "на английском"}`;
+  }
+}
+
+function saveVoicePreference(language, select) {
+  savedVoiceSettings[language] = select.value;
+  try {
+    window.localStorage.setItem(voiceStorageKey, JSON.stringify(savedVoiceSettings));
+    voiceStatus.textContent = "Настройки голосов сохранены в этом браузере.";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    voiceStatus.textContent = `Не удалось сохранить настройки голосов: ${message}`;
+  }
+}
+
+function getVoiceKey(voice) {
+  return voice.voiceURI || `${voice.name}|${voice.lang}`;
+}
+
+function initializePhraseList() {
+  try {
+    const savedContent = window.localStorage.getItem(phraseStorageKey);
+    if (savedContent) {
+      const savedPhrases = parsePhrases(savedContent);
+      if (savedPhrases.length === 0) {
+        throw new Error("Сохранённый список пуст.");
+      }
+      phraseEditor.value = savedContent;
+      phrases = savedPhrases;
+      currentIndex = 0;
+      renderPhrase();
+      setLoadStatus(`Загружен ваш список: ${phrases.length} фраз.`, false);
+      isActive = true;
+      updateControls();
+      speakPrompt();
+      return;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setLoadStatus(`Не удалось прочитать сохранённый список: ${message}. Загружаю пример.`, true);
+  }
+
+  loadPhrases();
+}
 
 async function loadPhrases() {
   const rawUrl = sourceUrl.value.trim();
@@ -137,6 +291,7 @@ async function loadPhrases() {
       throw new Error("В файле не найдено ни одной пары фраз.");
     }
 
+    phraseEditor.value = content;
     phrases = loadedPhrases;
     currentIndex = 0;
     loadedSourceUrl = rawUrl;
@@ -312,6 +467,11 @@ function speak(text, language, onEnd) {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language;
     utterance.rate = 0.94;
+    const voiceSelect = language.toLowerCase().startsWith("ru")
+      ? russianVoiceSelect
+      : englishVoiceSelect;
+    const selectedVoice = voices.find((voice) => getVoiceKey(voice) === voiceSelect.value);
+    if (selectedVoice) utterance.voice = selectedVoice;
     utterance.onend = () => {
       if (isActive && onEnd) onEnd();
     };
@@ -350,4 +510,5 @@ function setLoadStatus(message, isError) {
 }
 
 updateControls();
-loadPhrases();
+initializeVoices();
+initializePhraseList();

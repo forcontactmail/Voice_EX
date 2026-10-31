@@ -29,7 +29,9 @@ body {
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
 }
 
@@ -165,10 +167,10 @@ label {
   gap: 8px;
 }
 
-input {
+input,
+textarea,
+select {
   width: 100%;
-  min-height: 43px;
-  padding: 0 12px;
   border: 1px solid #cbd6ce;
   border-radius: 4px;
   outline: none;
@@ -178,13 +180,62 @@ input {
 }
 
 input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
 button:focus-visible {
   outline: 3px solid rgb(21 118 95 / 25%);
   outline-offset: 2px;
 }
 
+input,
+select {
+  min-height: 43px;
+  padding: 0 12px;
+}
+
+textarea {
+  min-height: 155px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.file-label {
+  margin-top: 20px;
+}
+
+.file-input {
+  min-height: 0;
+  padding: 9px;
+  font-size: 12px;
+}
+
+.small-button,
+.save-button {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--green);
+  border-radius: 4px;
+  background: var(--green);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.small-button:hover,
+.save-button:hover {
+  background: var(--green-dark);
+}
+
+.save-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
 .format-hint {
-  margin: 14px 0 0;
+  margin: 8px 0 0;
   font-size: 12px;
 }
 
@@ -205,6 +256,37 @@ code {
 
 .load-status.is-error {
   color: var(--coral);
+}
+
+.voice-settings {
+  display: grid;
+  gap: 8px;
+  margin-top: 25px;
+}
+
+.voice-settings h3 {
+  margin: 0 0 4px;
+  font-family: "Newsreader", serif;
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.voice-settings label {
+  margin: 4px 0 0;
+}
+
+.voice-settings select {
+  min-width: 0;
+  padding-inline: 8px;
+  font-size: 12px;
+}
+
+.voice-status {
+  min-height: 16px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .source-divider {

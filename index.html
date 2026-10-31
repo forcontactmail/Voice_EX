@@ -27,17 +27,34 @@
       <aside class="source-panel" aria-labelledby="source-title">
         <div class="section-kicker"><span>01</span> ИСТОЧНИК</div>
         <h2 id="source-title">Ваши фразы</h2>
-        <p class="section-copy">Файл phrases.txt загружается автоматически. Измените URL, чтобы загрузить другой файл.</p>
+        <p class="section-copy">Загрузите свой список фраз или отредактируйте его. Изменения можно сохранить в браузере.</p>
 
         <form id="source-form">
           <label for="source-url">URL текстового файла</label>
           <div class="url-row">
             <input id="source-url" name="url" type="text" value="./phrases.txt" autocomplete="url" spellcheck="false" required>
+            <button class="small-button" type="submit">Загрузить URL</button>
           </div>
         </form>
 
-        <p class="format-hint">Одна пара на строку: фраза на русском, затем <code>|</code> и перевод на английском. Tab тоже подходит.</p>
+        <label class="file-label" for="phrase-file">Или выбрать текстовый файл</label>
+        <input id="phrase-file" class="file-input" type="file" accept=".txt,text/plain">
+
+        <label for="phrase-editor">Список фраз</label>
+        <textarea id="phrase-editor" rows="8" spellcheck="false" aria-describedby="phrase-format-hint"></textarea>
+        <p id="phrase-format-hint" class="format-hint">Одна пара на строку: русская фраза, затем <code>|</code> и английский перевод. Tab тоже подходит.</p>
+        <button id="save-phrases-button" class="save-button" type="button">Сохранить список</button>
         <p id="load-status" class="load-status" role="status">Загружаю пример...</p>
+
+        <div class="voice-settings" aria-labelledby="voice-settings-title">
+          <h3 id="voice-settings-title">Голоса</h3>
+          <label for="russian-voice">Русский голос</label>
+          <select id="russian-voice"></select>
+          <label for="english-voice">Английский голос</label>
+          <select id="english-voice"></select>
+          <p id="voice-status" class="voice-status" role="status"></p>
+        </div>
+
         <div class="source-divider"></div>
         <p class="privacy-note">Распознавание речи зависит от браузера и подключения к сети. Лучше всего работает в Chrome и Edge.</p>
       </aside>
