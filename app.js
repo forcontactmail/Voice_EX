@@ -13,7 +13,6 @@ const feedback = document.querySelector("#feedback");
 const recognitionStatus = document.querySelector("#recognition-status");
 const startButton = document.querySelector("#start-button");
 const repeatButton = document.querySelector("#repeat-button");
-const listenButton = document.querySelector("#listen-button");
 const stopButton = document.querySelector("#stop-button");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -23,6 +22,9 @@ let phrases = [];
 let currentIndex = 0;
 let isActive = false;
 let isListening = false;
+let recognitionMode = "answer";
+let answerAlternatives = [];
+let retryKeywordListening = false;
 
 if (recognition) {
   recognition.lang = "en-US";
@@ -32,29 +34,54 @@ if (recognition) {
 
   recognition.addEventListener("start", () => {
     isListening = true;
-    recognitionStatus.textContent = "Слушаю...";
-    listenButton.disabled = true;
+    recognitionStatus.textContent = recognitionMode === "keyword"
+      ? "Перевод распознан. Скажите «Готово», чтобы проверить."
+      : "Слушаю перевод по-английски...";
   });
 
   recognition.addEventListener("result", (event) => {
     const alternatives = Array.from(event.results[0], (result) => result.transcript);
+    if (recognitionMode === "keyword") {
+      if (alternatives.some((answer) => normalize(answer) === normalize("Готово"))) {
+        retryKeywordListening = false;
+        recognition.stop();
+        checkAnswer(answerAlternatives);
+      } else {
+        recognitionStatus.textContent = "Скажите «Готово», чтобы проверить перевод.";
+        retryKeywordListening = true;
+        recognition.stop();
+      }
+      return;
+    }
+
+    answerAlternatives = alternatives;
+    recognitionMode = "keyword";
+    recognition.lang = "ru-RU";
+    retryKeywordListening = true;
     recognition.stop();
-    checkAnswer(alternatives);
   });
 
   recognition.addEventListener("error", (event) => {
     const messages = {
       "not-allowed": "Разрешите доступ к микрофону в настройках браузера.",
       "service-not-allowed": "Распознавание речи недоступно в этом браузере.",
-      "no-speech": "Речь не распознана. Нажмите «Говорить» и попробуйте ещё раз.",
+      "no-speech": recognitionMode === "keyword"
+        ? "Скажите «Готово», когда закончите перевод."
+        : "Речь не распознана. Скажите перевод по-английски, затем «Готово».",
       network: "Нет соединения с сервисом распознавания речи.",
     };
     recognitionStatus.textContent = messages[event.error] || "Не удалось распознать речь. Попробуйте ещё раз.";
+    if (event.error === "no-speech" && recognitionMode === "keyword" && answerAlternatives.length) {
+      retryKeywordListening = true;
+    }
   });
 
   recognition.addEventListener("end", () => {
     isListening = false;
-    listenButton.disabled = !isActive;
+    if (isActive && retryKeywordListening) {
+      retryKeywordListening = false;
+      startListening();
+    }
   });
 }
 
@@ -172,8 +199,12 @@ function speakPrompt() {
   stopListening();
   answerReveal.hidden = true;
   feedback.className = "feedback";
-  feedback.textContent = "Слушайте фразу, затем произнесите перевод.";
+  feedback.textContent = "Скажите перевод по-английски, затем произнесите «Готово».";
   recognitionStatus.textContent = "";
+  recognitionMode = "answer";
+  answerAlternatives = [];
+  retryKeywordListening = false;
+  recognition.lang = "en-US";
   speak(phrases[currentIndex].prompt, "ru-RU", startListening);
 }
 
@@ -222,7 +253,14 @@ function checkAnswer(alternatives) {
   answerReveal.hidden = false;
   feedback.className = "feedback is-error";
   feedback.textContent = "Ошибка. Послушайте правильный перевод и повторите.";
-  speak(`Ошибка. Правильный перевод: ${translation}. Повторите.`, "ru-RU", startListening);
+  recognitionMode = "answer";
+  answerAlternatives = [];
+  recognition.lang = "en-US";
+  speak("Ошибка. Правильный перевод:", "ru-RU", () => {
+    speak(translation, "en-US", () => {
+      speak("Повторите.", "ru-RU", startListening);
+    });
+  });
 }
 
 function normalize(value) {
@@ -267,7 +305,6 @@ function updateControls() {
   const hasPhrase = phrases.length > 0 && currentIndex < phrases.length;
   startButton.disabled = !phrases.length || isActive;
   repeatButton.disabled = !isActive || !hasPhrase;
-  listenButton.disabled = !isActive || isListening || !recognition || !hasPhrase;
   stopButton.disabled = !isActive;
 }
 

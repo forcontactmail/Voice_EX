@@ -390,26 +390,6 @@ code {
   color: var(--coral);
 }
 
-.mic-icon {
-  position: relative;
-  width: 10px;
-  height: 15px;
-  border: 1.5px solid currentColor;
-  border-radius: 8px;
-}
-
-.mic-icon::after {
-  position: absolute;
-  right: -4px;
-  bottom: -5px;
-  left: -4px;
-  height: 7px;
-  border: 1.5px solid currentColor;
-  border-top: 0;
-  border-radius: 0 0 9px 9px;
-  content: "";
-}
-
 .recognition-status {
   min-height: 18px;
   margin: 14px 0 0;
