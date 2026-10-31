@@ -261,16 +261,43 @@ function initializeVoiceOptions() {
     return;
   }
 
+  let attempts = 0;
+  let retryTimer;
   const populate = () => {
+    window.clearTimeout(retryTimer);
     const voices = window.speechSynthesis.getVoices();
-    populateVoiceSelect(russianVoiceSelect, voices, "ru", russianVoiceStorageKey, "Русские голоса не найдены.");
-    populateVoiceSelect(englishVoiceSelect, voices, "en", englishVoiceStorageKey, "Английские голоса не найдены.");
-    if (voices.some((voice) => voice.lang.toLowerCase().startsWith("ru"))
-      && voices.some((voice) => voice.lang.toLowerCase().startsWith("en"))) {
+    const hasRussianVoices = populateVoiceSelect(
+      russianVoiceSelect,
+      voices,
+      "ru",
+      russianVoiceStorageKey,
+      "Русский голос браузера по умолчанию",
+    );
+    const hasEnglishVoices = populateVoiceSelect(
+      englishVoiceSelect,
+      voices,
+      "en",
+      englishVoiceStorageKey,
+      "Английский голос браузера по умолчанию",
+    );
+    if (hasRussianVoices && hasEnglishVoices) {
       voiceStatus.textContent = "Выберите голоса озвучивания.";
       voiceStatus.classList.remove("is-error");
+      window.clearTimeout(retryTimer);
+      return;
+    }
+
+    attempts += 1;
+    if (attempts < 20) {
+      voiceStatus.textContent = "Ожидаю список голосов от браузера...";
+      voiceStatus.classList.remove("is-error");
+      retryTimer = window.setTimeout(populate, 250);
     } else {
-      voiceStatus.textContent = "Список голосов зависит от голосов, установленных в браузере.";
+      const missingLanguages = [
+        ...(!hasRussianVoices ? ["русские"] : []),
+        ...(!hasEnglishVoices ? ["английские"] : []),
+      ];
+      voiceStatus.textContent = `Браузер не предоставил ${missingLanguages.join(" и ")} голоса. Выбран голос браузера по умолчанию; установите нужные голоса в системе, чтобы выбирать их отдельно.`;
       voiceStatus.classList.add("is-error");
     }
   };
@@ -293,11 +320,11 @@ function populateVoiceSelect(select, voices, language, storageKey, emptyMessage)
   select.replaceChildren();
   if (!matchingVoices.length) {
     const option = document.createElement("option");
-    option.textContent = emptyMessage;
+    option.textContent = `${emptyMessage} (установите голос ${language === "ru" ? "ru-RU" : "en-US"} в системе для выбора)`;
     option.value = "";
     select.add(option);
-    select.disabled = true;
-    return;
+    select.disabled = false;
+    return false;
   }
 
   for (const voice of matchingVoices) {
@@ -310,6 +337,7 @@ function populateVoiceSelect(select, voices, language, storageKey, emptyMessage)
   select.value = matchingVoices.some((voice) => voice.voiceURI === savedVoice)
     ? savedVoice
     : matchingVoices[0].voiceURI;
+  return true;
 }
 
 function selectedVoice(language) {
