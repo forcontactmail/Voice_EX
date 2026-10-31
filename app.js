@@ -38,6 +38,9 @@ let answerAlternatives = [];
 let retryListening = false;
 let recognitionEndAction = null;
 let recognitionStopTimer = null;
+let checkNextAnswerImmediately = false;
+let recognitionStartTimer = null;
+let recognitionStartAttempts = 0;
 
 const phraseStorageKey = "voicePractice.phrases";
 const russianVoiceStorageKey = "voicePractice.russianVoice";
@@ -51,6 +54,9 @@ if (recognition) {
 
   recognition.addEventListener("start", () => {
     isListening = true;
+    recognitionStartAttempts = 0;
+    window.clearTimeout(recognitionStartTimer);
+    recognitionStartTimer = null;
     recognitionStatus.textContent = recognitionMode === "keyword"
       ? "Перевод распознан. Скажите «Готово» для проверки или «Повтори фразу» для повтора."
       : "Слушаю перевод по-английски...";
@@ -64,13 +70,20 @@ if (recognition) {
       return;
     }
 
+    if (checkNextAnswerImmediately) {
+      checkNextAnswerImmediately = false;
+      retryListening = false;
+      stopRecognitionThen(() => checkAnswer(alternatives));
+      return;
+    }
+
     if (recognitionMode === "keyword") {
       if (alternatives.some((answer) => normalize(answer) === normalize("Готово"))) {
         retryListening = false;
         recognitionStatus.textContent = "Проверяю ответ...";
         stopRecognitionThen(() => checkAnswer(answerAlternatives));
       } else {
-        recognitionStatus.textContent = "Скажите «Готово» для проверки или «Повтори фразу» для повтора.";
+        recognitionStatus.textContent = `Распознано: «${answerAlternatives[0] || "ответ"}». Скажите «Готово» для проверки или «Повтори фразу» для повтора.`;
         retryListening = true;
         stopRecognitionThen(resumeListeningIfNeeded);
       }
@@ -78,6 +91,7 @@ if (recognition) {
     }
 
     answerAlternatives = alternatives;
+    recognitionStatus.textContent = `Распознано: «${alternatives[0] || "ответ"}». Теперь скажите «Готово» для проверки.`;
     recognitionMode = "keyword";
     recognition.lang = "ru-RU";
     retryListening = true;
@@ -383,11 +397,12 @@ function speakPrompt() {
   stopListening();
   answerReveal.hidden = true;
   feedback.className = "feedback";
-  feedback.textContent = "Скажите перевод по-английски. Чтобы сразу повторить исходную фразу, скажите “Repeat phrase”.";
+  feedback.textContent = "Скажите перевод по-английски, затем «Готово» для проверки. Чтобы повторить исходную фразу, скажите “Repeat phrase”.";
   recognitionStatus.textContent = "";
   recognitionMode = "answer";
   answerAlternatives = [];
   retryListening = false;
+  checkNextAnswerImmediately = false;
   if (recognition) recognition.lang = "en-US";
   speak(phrases[currentIndex].prompt, "ru-RU", startListening);
 }
@@ -406,7 +421,14 @@ function startListening() {
   } catch (error) {
     isListening = false;
     const message = error instanceof Error ? error.message : String(error);
-    recognitionStatus.textContent = `Не удалось запустить распознавание речи: ${message}`;
+    if (error instanceof Error && error.name === "InvalidStateError" && recognitionStartAttempts < 4) {
+      recognitionStartAttempts += 1;
+      recognitionStatus.textContent = "Перезапускаю микрофон...";
+      window.clearTimeout(recognitionStartTimer);
+      recognitionStartTimer = window.setTimeout(startListening, 300);
+      return;
+    }
+    recognitionStatus.textContent = `Не удалось запустить распознавание речи: ${message}. Проверьте разрешение на микрофон и попробуйте перезагрузить страницу.`;
   }
 }
 
@@ -448,7 +470,8 @@ function completeRecognitionStop() {
 function resumeListeningIfNeeded() {
   if (!isActive || !retryListening) return;
   retryListening = false;
-  startListening();
+  window.clearTimeout(recognitionStartTimer);
+  recognitionStartTimer = window.setTimeout(startListening, 200);
 }
 
 function checkAnswer(alternatives) {
@@ -482,9 +505,10 @@ function checkAnswer(alternatives) {
   expectedAnswer.textContent = translation;
   answerReveal.hidden = false;
   feedback.className = "feedback is-error";
-  feedback.textContent = "Ошибка. Послушайте правильный перевод и повторите.";
+  feedback.textContent = "Ошибка. Послушайте распознанный ответ и правильный перевод, затем повторите правильный перевод.";
   recognitionMode = "answer";
   answerAlternatives = [];
+  checkNextAnswerImmediately = true;
   recognition.lang = "en-US";
   speak(recognized, "en-US", () => speak(translation, "en-US", startListening));
 }
@@ -545,9 +569,12 @@ function stopListening() {
 function stopPractice() {
   isActive = false;
   retryListening = false;
+  checkNextAnswerImmediately = false;
   recognitionEndAction = null;
   window.clearTimeout(recognitionStopTimer);
   recognitionStopTimer = null;
+  window.clearTimeout(recognitionStartTimer);
+  recognitionStartTimer = null;
   stopListening();
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   recognitionStatus.textContent = "Практика остановлена.";
