@@ -36,6 +36,7 @@ let isListening = false;
 let recognitionMode = "answer";
 let answerAlternatives = [];
 let retryListening = false;
+let recognitionEndAction = null;
 
 const phraseStorageKey = "voicePractice.phrases";
 const russianVoiceStorageKey = "voicePractice.russianVoice";
@@ -58,16 +59,16 @@ if (recognition) {
     const alternatives = Array.from(event.results[0], (result) => result.transcript);
     if (alternatives.some(isRepeatCommand)) {
       retryListening = false;
+      recognitionEndAction = speakPrompt;
       recognition.stop();
-      speakPrompt();
       return;
     }
 
     if (recognitionMode === "keyword") {
       if (alternatives.some((answer) => normalize(answer) === normalize("Готово"))) {
         retryListening = false;
+        recognitionEndAction = () => checkAnswer(answerAlternatives);
         recognition.stop();
-        checkAnswer(answerAlternatives);
       } else {
         recognitionStatus.textContent = "Скажите «Готово» для проверки или «Повтори фразу» для повтора.";
         retryListening = true;
@@ -100,6 +101,12 @@ if (recognition) {
 
   recognition.addEventListener("end", () => {
     isListening = false;
+    if (recognitionEndAction) {
+      const action = recognitionEndAction;
+      recognitionEndAction = null;
+      action();
+      return;
+    }
     if (isActive && retryListening) {
       retryListening = false;
       startListening();
@@ -403,9 +410,12 @@ function startListening() {
   if (isListening) return;
 
   try {
+    isListening = true;
     recognition.start();
-  } catch {
-    recognitionStatus.textContent = "Микрофон уже активен. Говорите или нажмите «Остановить».";
+  } catch (error) {
+    isListening = false;
+    const message = error instanceof Error ? error.message : String(error);
+    recognitionStatus.textContent = `Не удалось запустить распознавание речи: ${message}`;
   }
 }
 
@@ -464,8 +474,16 @@ function normalize(value) {
 function speak(text, language, onEnd) {
   if (!("speechSynthesis" in window)) {
     recognitionStatus.textContent = "Озвучивание не поддерживается этим браузером.";
+    if (isActive && onEnd) onEnd();
     return;
   }
+
+  let continued = false;
+  const continueAfterSpeech = () => {
+    if (continued) return;
+    continued = true;
+    if (isActive && onEnd) onEnd();
+  };
 
   try {
     window.speechSynthesis.cancel();
@@ -474,16 +492,16 @@ function speak(text, language, onEnd) {
     const voice = selectedVoice(language.startsWith("ru") ? "ru" : "en");
     if (voice) utterance.voice = voice;
     utterance.rate = 0.94;
-    utterance.onend = () => {
-      if (isActive && onEnd) onEnd();
-    };
+    utterance.onend = continueAfterSpeech;
     utterance.onerror = (event) => {
       recognitionStatus.textContent = `Не удалось озвучить фразу: ${event.error || "ошибка синтеза речи"}.`;
+      continueAfterSpeech();
     };
     window.speechSynthesis.speak(utterance);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     recognitionStatus.textContent = `Не удалось запустить озвучивание: ${message}`;
+    continueAfterSpeech();
   }
 }
 
@@ -495,6 +513,7 @@ function stopListening() {
 function stopPractice() {
   isActive = false;
   retryListening = false;
+  recognitionEndAction = null;
   stopListening();
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   recognitionStatus.textContent = "Практика остановлена.";
