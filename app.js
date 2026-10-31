@@ -11,9 +11,8 @@ const answerReveal = document.querySelector("#answer-reveal");
 const expectedAnswer = document.querySelector("#expected-answer");
 const feedback = document.querySelector("#feedback");
 const recognitionStatus = document.querySelector("#recognition-status");
-const startButton = document.querySelector("#start-button");
-const repeatButton = document.querySelector("#repeat-button");
 const stopButton = document.querySelector("#stop-button");
+const recognizedAnswer = document.querySelector("#recognized-answer");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
@@ -24,7 +23,8 @@ let isActive = false;
 let isListening = false;
 let recognitionMode = "answer";
 let answerAlternatives = [];
-let retryKeywordListening = false;
+let retryListening = false;
+let loadedSourceUrl = "";
 
 if (recognition) {
   recognition.lang = "en-US";
@@ -35,20 +35,27 @@ if (recognition) {
   recognition.addEventListener("start", () => {
     isListening = true;
     recognitionStatus.textContent = recognitionMode === "keyword"
-      ? "Перевод распознан. Скажите «Готово», чтобы проверить."
+      ? "Перевод распознан. Скажите «Готово» для проверки или «Повтори фразу» для повтора."
       : "Слушаю перевод по-английски...";
   });
 
   recognition.addEventListener("result", (event) => {
     const alternatives = Array.from(event.results[0], (result) => result.transcript);
+    if (alternatives.some(isRepeatCommand)) {
+      retryListening = false;
+      recognition.stop();
+      speakPrompt();
+      return;
+    }
+
     if (recognitionMode === "keyword") {
       if (alternatives.some((answer) => normalize(answer) === normalize("Готово"))) {
-        retryKeywordListening = false;
+        retryListening = false;
         recognition.stop();
         checkAnswer(answerAlternatives);
       } else {
-        recognitionStatus.textContent = "Скажите «Готово», чтобы проверить перевод.";
-        retryKeywordListening = true;
+        recognitionStatus.textContent = "Скажите «Готово» для проверки или «Повтори фразу» для повтора.";
+        retryListening = true;
         recognition.stop();
       }
       return;
@@ -57,7 +64,7 @@ if (recognition) {
     answerAlternatives = alternatives;
     recognitionMode = "keyword";
     recognition.lang = "ru-RU";
-    retryKeywordListening = true;
+    retryListening = true;
     recognition.stop();
   });
 
@@ -66,20 +73,20 @@ if (recognition) {
       "not-allowed": "Разрешите доступ к микрофону в настройках браузера.",
       "service-not-allowed": "Распознавание речи недоступно в этом браузере.",
       "no-speech": recognitionMode === "keyword"
-        ? "Скажите «Готово», когда закончите перевод."
-        : "Речь не распознана. Скажите перевод по-английски, затем «Готово».",
+        ? "Скажите «Готово» для проверки или «Повтори фразу» для повтора."
+        : "Речь не распознана. Скажите перевод по-английски или “Repeat phrase”, чтобы повторить исходную фразу.",
       network: "Нет соединения с сервисом распознавания речи.",
     };
     recognitionStatus.textContent = messages[event.error] || "Не удалось распознать речь. Попробуйте ещё раз.";
-    if (event.error === "no-speech" && recognitionMode === "keyword" && answerAlternatives.length) {
-      retryKeywordListening = true;
+    if (event.error === "no-speech") {
+      retryListening = true;
     }
   });
 
   recognition.addEventListener("end", () => {
     isListening = false;
-    if (isActive && retryKeywordListening) {
-      retryKeywordListening = false;
+    if (isActive && retryListening) {
+      retryListening = false;
       startListening();
     }
   });
@@ -94,13 +101,17 @@ if (recognition && "speechSynthesis" in window) {
   recognitionStatus.textContent = "Для голосовой практики откройте страницу в Chrome или Edge.";
 }
 
-sourceForm.addEventListener("submit", async (event) => {
+sourceForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const rawUrl = sourceUrl.value.trim();
-  if (!rawUrl) return;
+  loadPhrases();
+});
 
+sourceUrl.addEventListener("change", loadPhrases);
+
+async function loadPhrases() {
+  const rawUrl = sourceUrl.value.trim();
+  if (!rawUrl || rawUrl === loadedSourceUrl) return;
   setLoadStatus("Загружаю фразы...", false);
-  startButton.disabled = true;
   stopPractice();
 
   try {
@@ -116,27 +127,20 @@ sourceForm.addEventListener("submit", async (event) => {
 
     phrases = loadedPhrases;
     currentIndex = 0;
+    loadedSourceUrl = rawUrl;
     renderPhrase();
-    startButton.disabled = false;
     setLoadStatus(`Загружено фраз: ${phrases.length}.`, false);
-    feedback.textContent = "Нажмите «Начать практику», чтобы услышать первую фразу.";
+    isActive = true;
+    updateControls();
+    speakPrompt();
   } catch (error) {
     phrases = [];
     renderPhrase();
+    loadedSourceUrl = "";
     setLoadStatus(`Не удалось загрузить файл: ${error.message}. Проверьте URL и CORS.`, true);
   }
-});
+}
 
-startButton.addEventListener("click", () => {
-  if (!phrases.length) return;
-  currentIndex = 0;
-  isActive = true;
-  updateControls();
-  speakPrompt();
-});
-
-repeatButton.addEventListener("click", speakPrompt);
-listenButton.addEventListener("click", startListening);
 stopButton.addEventListener("click", stopPractice);
 
 function parsePhrases(content) {
@@ -164,7 +168,7 @@ function parsePhrases(content) {
 
 function renderPhrase() {
   if (!phrases.length) {
-    phraseElement.textContent = "Загрузите файл, чтобы начать";
+    phraseElement.textContent = "Проверьте URL текстового файла";
     progressLabel.textContent = "Нет фраз";
     progressFill.style.width = "0%";
     progressTrack.setAttribute("aria-valuemax", "0");
@@ -181,6 +185,8 @@ function renderPhrase() {
     progressTrack.setAttribute("aria-valuemax", String(phrases.length));
     progressTrack.setAttribute("aria-valuenow", String(phrases.length));
     answerReveal.hidden = true;
+    recognizedAnswer.textContent = "";
+    expectedAnswer.textContent = "";
     updateControls();
     return;
   }
@@ -191,6 +197,7 @@ function renderPhrase() {
   progressTrack.setAttribute("aria-valuemax", String(phrases.length));
   progressTrack.setAttribute("aria-valuenow", String(currentIndex));
   answerReveal.hidden = true;
+  recognizedAnswer.textContent = "";
   expectedAnswer.textContent = "";
 }
 
@@ -199,12 +206,12 @@ function speakPrompt() {
   stopListening();
   answerReveal.hidden = true;
   feedback.className = "feedback";
-  feedback.textContent = "Скажите перевод по-английски, затем произнесите «Готово».";
+  feedback.textContent = "Скажите перевод по-английски. Чтобы сразу повторить исходную фразу, скажите “Repeat phrase”.";
   recognitionStatus.textContent = "";
   recognitionMode = "answer";
   answerAlternatives = [];
-  retryKeywordListening = false;
-  recognition.lang = "en-US";
+  retryListening = false;
+  if (recognition) recognition.lang = "en-US";
   speak(phrases[currentIndex].prompt, "ru-RU", startListening);
 }
 
@@ -249,6 +256,8 @@ function checkAnswer(alternatives) {
   }
 
   const translation = phrases[currentIndex].translation;
+  const recognized = alternatives[0] || "";
+  recognizedAnswer.textContent = recognized;
   expectedAnswer.textContent = translation;
   answerReveal.hidden = false;
   feedback.className = "feedback is-error";
@@ -256,11 +265,12 @@ function checkAnswer(alternatives) {
   recognitionMode = "answer";
   answerAlternatives = [];
   recognition.lang = "en-US";
-  speak("Ошибка. Правильный перевод:", "ru-RU", () => {
-    speak(translation, "en-US", () => {
-      speak("Повторите.", "ru-RU", startListening);
-    });
-  });
+  speak(recognized, "en-US", () => speak(translation, "en-US", startListening));
+}
+
+function isRepeatCommand(value) {
+  const command = normalize(value);
+  return ["повтори фразу", "повтори", "повторить фразу", "повторить", "repeat phrase", "repeat"].includes(command);
 }
 
 function normalize(value) {
@@ -295,16 +305,15 @@ function stopListening() {
 
 function stopPractice() {
   isActive = false;
+  retryListening = false;
   stopListening();
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   recognitionStatus.textContent = "Практика остановлена.";
+  loadedSourceUrl = "";
   updateControls();
 }
 
 function updateControls() {
-  const hasPhrase = phrases.length > 0 && currentIndex < phrases.length;
-  startButton.disabled = !phrases.length || isActive;
-  repeatButton.disabled = !isActive || !hasPhrase;
   stopButton.disabled = !isActive;
 }
 
@@ -314,3 +323,4 @@ function setLoadStatus(message, isError) {
 }
 
 updateControls();
+loadPhrases();

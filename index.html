@@ -27,18 +27,17 @@
       <aside class="source-panel" aria-labelledby="source-title">
         <div class="section-kicker"><span>01</span> ИСТОЧНИК</div>
         <h2 id="source-title">Ваши фразы</h2>
-        <p class="section-copy">Загрузите текстовый файл с исходными фразами и их переводом.</p>
+        <p class="section-copy">Файл phrases.txt загружается автоматически. Измените URL, чтобы загрузить другой файл.</p>
 
         <form id="source-form">
           <label for="source-url">URL текстового файла</label>
           <div class="url-row">
             <input id="source-url" name="url" type="text" value="./phrases.txt" autocomplete="url" spellcheck="false" required>
-            <button class="load-button" type="submit">Загрузить</button>
           </div>
         </form>
 
         <p class="format-hint">Одна пара на строку: фраза на русском, затем <code>|</code> и перевод на английском. Tab тоже подходит.</p>
-        <p id="load-status" class="load-status" role="status">Пример уже подготовлен. Нажмите «Загрузить».</p>
+        <p id="load-status" class="load-status" role="status">Загружаю пример...</p>
         <div class="source-divider"></div>
         <p class="privacy-note">Распознавание речи зависит от браузера и подключения к сети. Лучше всего работает в Chrome и Edge.</p>
       </aside>
@@ -58,8 +57,10 @@
 
         <div class="phrase-area">
           <p class="prompt-label">СКАЖИТЕ ПО-АНГЛИЙСКИ</p>
-          <p id="phrase" class="phrase">Загрузите файл, чтобы начать</p>
+          <p id="phrase" class="phrase">Загружаю фразы...</p>
           <div id="answer-reveal" class="answer-reveal" hidden>
+            <span>Распознано</span>
+            <strong id="recognized-answer"></strong>
             <span>Правильный перевод</span>
             <strong id="expected-answer"></strong>
           </div>
@@ -67,8 +68,6 @@
         </div>
 
         <div class="controls">
-          <button id="start-button" class="start-button" type="button" disabled>Начать практику <span aria-hidden="true">→</span></button>
-          <button id="repeat-button" class="secondary-button" type="button" disabled>Повторить фразу</button>
           <button id="stop-button" class="stop-button" type="button" disabled>Остановить</button>
         </div>
         <p id="recognition-status" class="recognition-status" aria-live="polite"></p>

@@ -183,21 +183,6 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-.load-button {
-  min-height: 42px;
-  border: 0;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--white);
-  font-size: 13px;
-  font-weight: 600;
-  transition: background 160ms ease;
-}
-
-.load-button:hover {
-  background: var(--green-dark);
-}
-
 .format-hint {
   margin: 14px 0 0;
   font-size: 12px;
@@ -334,8 +319,6 @@ code {
   padding-top: 8px;
 }
 
-.start-button,
-.secondary-button,
 .stop-button {
   display: inline-flex;
   min-height: 45px;
@@ -347,34 +330,6 @@ code {
   font-size: 12px;
   font-weight: 600;
   transition: background 160ms ease, border-color 160ms ease;
-}
-
-.start-button {
-  min-width: 173px;
-  border: 1px solid var(--green);
-  background: var(--green);
-  color: var(--white);
-}
-
-.start-button:hover:not(:disabled) {
-  border-color: var(--green-dark);
-  background: var(--green-dark);
-}
-
-.start-button span {
-  font-size: 18px;
-  font-weight: 400;
-}
-
-.secondary-button {
-  border: 1px solid #ccd7cf;
-  background: rgb(255 255 255 / 55%);
-  color: var(--ink);
-}
-
-.secondary-button:hover:not(:disabled) {
-  border-color: var(--green);
-  background: var(--white);
 }
 
 .stop-button {
@@ -436,11 +391,6 @@ code {
     flex-direction: row;
   }
 
-  .load-button {
-    min-width: 112px;
-    padding-inline: 13px;
-  }
-
   .source-divider,
   .privacy-note {
     display: none;
@@ -499,15 +449,6 @@ code {
 
   .controls {
     gap: 8px;
-  }
-
-  .start-button {
-    flex: 1 1 100%;
-  }
-
-  .secondary-button {
-    flex: 1;
-    padding-inline: 9px;
   }
 
   .stop-button {
