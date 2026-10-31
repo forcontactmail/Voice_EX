@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f6f1">
+    <title>Голосовая практика</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Голосовая практика, главная">
+        <span class="brand-mark" aria-hidden="true">V</span>
+        <span>voice practice</span>
+      </a>
+      <div class="browser-status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="browser-status">Проверка микрофона</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="source-panel" aria-labelledby="source-title">
+        <div class="section-kicker"><span>01</span> ИСТОЧНИК</div>
+        <h2 id="source-title">Ваши фразы</h2>
+        <p class="section-copy">Загрузите текстовый файл с исходными фразами и их переводом.</p>
+
+        <form id="source-form">
+          <label for="source-url">URL текстового файла</label>
+          <div class="url-row">
+            <input id="source-url" name="url" type="text" value="./phrases.txt" autocomplete="url" spellcheck="false" required>
+            <button class="load-button" type="submit">Загрузить</button>
+          </div>
+        </form>
+
+        <p class="format-hint">Одна пара на строку: фраза на русском, затем <code>|</code> и перевод на английском. Tab тоже подходит.</p>
+        <p id="load-status" class="load-status" role="status">Пример уже подготовлен. Нажмите «Загрузить».</p>
+        <div class="source-divider"></div>
+        <p class="privacy-note">Распознавание речи зависит от браузера и подключения к сети. Лучше всего работает в Chrome и Edge.</p>
+      </aside>
+
+      <section class="practice-panel" aria-labelledby="practice-title">
+        <div class="practice-heading">
+          <div>
+            <div class="section-kicker"><span>02</span> ГОВОРИТЕ</div>
+            <h1 id="practice-title">Переведите вслух.</h1>
+          </div>
+          <p id="progress-label" class="progress-label">Нет фраз</p>
+        </div>
+
+        <div class="progress-track" role="progressbar" aria-label="Прогресс тренировки" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+          <span id="progress-fill"></span>
+        </div>
+
+        <div class="phrase-area">
+          <p class="prompt-label">СКАЖИТЕ ПО-АНГЛИЙСКИ</p>
+          <p id="phrase" class="phrase">Загрузите файл, чтобы начать</p>
+          <div id="answer-reveal" class="answer-reveal" hidden>
+            <span>Правильный перевод</span>
+            <strong id="expected-answer"></strong>
+          </div>
+          <p id="feedback" class="feedback" role="status" aria-live="polite">Здесь появится результат распознавания.</p>
+        </div>
+
+        <div class="controls">
+          <button id="start-button" class="start-button" type="button" disabled>Начать практику <span aria-hidden="true">→</span></button>
+          <button id="repeat-button" class="secondary-button" type="button" disabled>Повторить фразу</button>
+          <button id="listen-button" class="secondary-button listen-button" type="button" disabled><span class="mic-icon" aria-hidden="true"></span> Говорить</button>
+          <button id="stop-button" class="stop-button" type="button" disabled>Остановить</button>
+        </div>
+        <p id="recognition-status" class="recognition-status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <span>СЛУШАЙТЕ · ВСПОМИНАЙТЕ · ГОВОРИТЕ</span>
+      <span>RU <span class="language-arrow">→</span> EN</span>
+    </footer>
+  </body>
+</html>
