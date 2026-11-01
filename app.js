@@ -41,6 +41,9 @@ let recognitionStopTimer = null;
 let checkNextAnswerImmediately = false;
 let recognitionStartTimer = null;
 let recognitionStartAttempts = 0;
+let recognitionUnexpectedEndRetries = 0;
+let recognitionErrorOccurred = false;
+let ignoreNextRecognitionEnd = false;
 
 const phraseStorageKey = "voicePractice.phrases";
 const russianVoiceStorageKey = "voicePractice.russianVoice";
@@ -54,6 +57,7 @@ if (recognition) {
 
   recognition.addEventListener("start", () => {
     isListening = true;
+    recognitionErrorOccurred = false;
     recognitionStartAttempts = 0;
     window.clearTimeout(recognitionStartTimer);
     recognitionStartTimer = null;
@@ -63,6 +67,7 @@ if (recognition) {
   });
 
   recognition.addEventListener("result", (event) => {
+    recognitionUnexpectedEndRetries = 0;
     const alternatives = Array.from(event.results[0], (result) => result.transcript);
     if (alternatives.some(isRepeatCommand)) {
       retryListening = false;
@@ -99,6 +104,7 @@ if (recognition) {
   });
 
   recognition.addEventListener("error", (event) => {
+    recognitionErrorOccurred = true;
     const messages = {
       "not-allowed": "Разрешите доступ к микрофону в настройках браузера.",
       "service-not-allowed": "Распознавание речи недоступно в этом браузере.",
@@ -115,6 +121,10 @@ if (recognition) {
   });
 
   recognition.addEventListener("end", () => {
+    if (ignoreNextRecognitionEnd) {
+      ignoreNextRecognitionEnd = false;
+      return;
+    }
     completeRecognitionStop();
   });
 }
@@ -464,6 +474,15 @@ function completeRecognitionStop() {
     action();
     return;
   }
+  if (isActive && !recognitionErrorOccurred && !retryListening) {
+    if (recognitionUnexpectedEndRetries < 3) {
+      recognitionUnexpectedEndRetries += 1;
+      recognitionStatus.textContent = "Распознавание завершилось. Перезапускаю микрофон...";
+      retryListening = true;
+    } else {
+      recognitionStatus.textContent = "Распознавание несколько раз завершилось без результата. Скажите перевод ещё раз или перезапустите практику.";
+    }
+  }
   resumeListeningIfNeeded();
 }
 
@@ -562,7 +581,10 @@ function speak(text, language, onEnd) {
 }
 
 function stopListening() {
-  if (recognition && isListening) recognition.stop();
+  if (recognition && isListening) {
+    ignoreNextRecognitionEnd = true;
+    recognition.stop();
+  }
   isListening = false;
 }
 
